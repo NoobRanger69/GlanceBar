@@ -174,11 +174,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Prefer the time estimate; fall back to % while macOS reports "(no estimate)"
         // (happens for a minute or two right after plugging/unplugging).
         let fallback = pct >= 0 ? "\(pct)%" : "–"
+
+        // Classify charge state from pmset's words. Two substring traps make
+        // order and guards matter: "discharging" contains "charging", and the
+        // plugged-but-holding state "not charging" contains it too — so a bare
+        // `contains("charging")` would mislabel both as charging.
+        let isCharged = state.contains("charged")
+        let isDischarging = state.contains("discharging")
+        let isCharging = state.contains("charging") && !isDischarging && !state.contains("not charging")
+
         var power: String
-        if state.contains("charged") {
+        if isCharged {
             power = "⚡Full"
-        } else if onAC {
+        } else if isCharging {
             power = "⚡" + (time ?? fallback)
+        } else if onAC {
+            // Plugged but holding (optimized-charging pause / charge limit /
+            // finishing charge): no running countdown, so show the level, not
+            // a stale "0:00".
+            power = "⚡" + fallback
         } else {
             power = time ?? fallback
         }
@@ -186,18 +200,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         batteryTitle = power
 
         var detail: String
-        switch state {
-        case let s where s.contains("charged"):
+        if isCharged {
             detail = "Battery   \(pctStr) · Charged"
-        // "discharging" must be tested before "charging": it contains that
-        // substring, so the charging case would otherwise swallow it and
-        // mislabel battery drain as "to full".
-        case let s where s.contains("discharging"):
+        } else if isDischarging {
             detail = time != nil ? "Battery   \(pctStr) · \(time!) remaining" : "Battery   \(pctStr) · on battery"
-        case let s where s.contains("charging"):
+        } else if isCharging {
             detail = time != nil ? "Battery   \(pctStr) · \(time!) to full" : "Battery   \(pctStr) · charging…"
-        default:
-            detail = onAC ? "Battery   \(pctStr) · on AC power" : "Battery   \(pctStr)"
+        } else if onAC {
+            detail = state.contains("not charging")
+                ? "Battery   \(pctStr) · on AC · not charging"
+                : "Battery   \(pctStr) · on AC power"
+        } else {
+            detail = "Battery   \(pctStr)"
         }
         if onAC && watt > 0 { detail += " · \(watt)W charger" }
         batteryDetailItem.title = detail
