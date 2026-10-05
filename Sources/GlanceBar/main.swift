@@ -189,10 +189,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         switch state {
         case let s where s.contains("charged"):
             detail = "Battery   \(pctStr) · Charged"
+        // "discharging" must be tested before "charging": it contains that
+        // substring, so the charging case would otherwise swallow it and
+        // mislabel battery drain as "to full".
+        case let s where s.contains("discharging"):
+            detail = time != nil ? "Battery   \(pctStr) · \(time!) remaining" : "Battery   \(pctStr) · on battery"
         case let s where s.contains("charging"):
             detail = time != nil ? "Battery   \(pctStr) · \(time!) to full" : "Battery   \(pctStr) · charging…"
-        case let s where s.contains("discharging"):
-            detail = time != nil ? "Battery   \(pctStr) · \(time!) left" : "Battery   \(pctStr) · on battery"
         default:
             detail = onAC ? "Battery   \(pctStr) · on AC power" : "Battery   \(pctStr)"
         }
